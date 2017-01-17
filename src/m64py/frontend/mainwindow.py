@@ -103,7 +103,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def resizeEvent(self, event):
         event.ignore()
         size = event.size()
-        width, height = size.width(), size.height()
         if self.widgets_height:
             width, height = size.width(), size.height() - self.widgets_height
             self.window_size_triggered((width, height))
@@ -306,6 +305,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if self.vidext:
             self.stack.setCurrentWidget(self.glwidget)
             self.glwidget.setFocus(True)
+            self.glwidget.context().moveToThread(self.worker)
         if not self.cheats:
             self.cheats = Cheat(self)
         self.update_status(self.worker.core.rom_settings.goodname.decode())

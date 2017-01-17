@@ -16,14 +16,9 @@
 
 import ctypes
 
-try:
-    # nvidia hack
-    from OpenGL import GL
-    glimport = True
-except ImportError:
-    glimport = False
+from OpenGL import GLUT
 
-from PyQt5.QtOpenGL import QGLFormat
+from PyQt5.QtGui import QSurfaceFormat, QOpenGLVersionProfile
 
 from sdl2 import SDL_WasInit, SDL_InitSubSystem, SDL_QuitSubSystem, SDL_INIT_VIDEO
 from sdl2 import SDL_GetNumDisplayModes, SDL_DisplayMode, SDL_GetDisplayMode
@@ -32,6 +27,7 @@ from m64py.core.defs import *
 from m64py.frontend.log import log
 
 try:
+    GLUT.glutInit()
     if not SDL_WasInit(SDL_INIT_VIDEO):
         SDL_InitSubSystem(SDL_INIT_VIDEO)
     MODES = []
@@ -53,8 +49,11 @@ class Video():
         """Constructor."""
         self.parent = None
         self.widget = None
+
+        self.gl = None
         self.glformat = None
         self.glcontext = None
+        self.version_profile = None
 
     def set_widget(self, parent):
         """Sets GL widget."""
@@ -64,7 +63,17 @@ class Video():
     def init(self):
         """Initialize GL context."""
         if not self.glcontext:
-            self.glformat = QGLFormat()
+            self.glformat = QSurfaceFormat()
+            self.glformat.setVersion(2, 1)
+            self.glformat.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
+            self.glformat.setRenderableType(QSurfaceFormat.OpenGL)
+            self.glformat.setProfile(QSurfaceFormat.CoreProfile)
+            QSurfaceFormat.setDefaultFormat(self.glformat)
+
+            self.version_profile = QOpenGLVersionProfile()
+            self.version_profile.setVersion(2, 1)
+            self.version_profile.setProfile(QSurfaceFormat.CoreProfile)
+
             self.glcontext = self.widget.context()
             self.glcontext.setFormat(self.glformat)
             self.glcontext.create()
@@ -73,7 +82,7 @@ class Video():
     def quit(self):
         """Shuts down the video system."""
         if self.glcontext:
-            self.glcontext.doneCurrent()
+            self.widget.doneCurrent()
             self.glcontext = None
         return M64ERR_SUCCESS
 
@@ -89,13 +98,15 @@ class Video():
 
     def set_video_mode(self, width, height, bits, mode):
         """Creates a rendering window."""
-        self.glcontext.makeCurrent()
+        self.widget.makeCurrent()
         if self.glcontext.isValid():
-            if glimport:
-                GL.glClearColor(0.0, 0.0, 0.0, 1.0);
-                GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
-                self.widget.swapBuffers()
-                GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
+            self.gl = self.glcontext.versionFunctions(self.version_profile)
+            self.gl.initializeOpenGLFunctions()
+
+            self.gl.glClearColor(0.0, 0.0, 0.0, 1.0);
+            self.gl.glClear(self.gl.GL_COLOR_BUFFER_BIT | self.gl.GL_DEPTH_BUFFER_BIT);
+            self.widget.update()
+            self.gl.glClear(self.gl.GL_COLOR_BUFFER_BIT | self.gl.GL_DEPTH_BUFFER_BIT);
             return M64ERR_SUCCESS
         else:
             return M64ERR_SYSTEM_FAIL
@@ -116,46 +127,54 @@ class Video():
     def gl_get_proc(self, proc):
         """Used to get a pointer to
         an OpenGL extension function."""
-        addr = self.glcontext.getProcAddress(proc.decode())
+
+        # QOpenGLContext from PyQt5 doesn't have getProcAddress() ?!
+        addr = GLUT.glutGetProcAddress(proc)
+
         if addr is not None:
-            return addr.__int__()
+            return int(addr)
         else:
             log.warn("VidExtFuncGLGetProc: '%s'" % proc.decode())
 
     def gl_set_attr(self, attr, value):
         """Sets OpenGL attributes."""
         attr_map = {
-            M64P_GL_DOUBLEBUFFER: self.glformat.setDoubleBuffer,
+            M64P_GL_DOUBLEBUFFER: None,
             M64P_GL_BUFFER_SIZE: self.glformat.setDepthBufferSize,
-            M64P_GL_DEPTH_SIZE: self.glformat.setDepth,
+            M64P_GL_DEPTH_SIZE: self.glformat.setDepthBufferSize,
             M64P_GL_RED_SIZE: self.glformat.setRedBufferSize,
             M64P_GL_GREEN_SIZE: self.glformat.setGreenBufferSize,
             M64P_GL_BLUE_SIZE: self.glformat.setBlueBufferSize,
             M64P_GL_ALPHA_SIZE: self.glformat.setAlphaBufferSize,
             M64P_GL_SWAP_CONTROL: self.glformat.setSwapInterval,
-            M64P_GL_MULTISAMPLEBUFFERS: self.glformat.setSampleBuffers,
+            M64P_GL_MULTISAMPLEBUFFERS: None,
             M64P_GL_MULTISAMPLESAMPLES: self.glformat.setSamples
         }
+
         set_attr = attr_map[attr]
-        set_attr(value)
+        if set_attr:
+            set_attr(value)
+
         return M64ERR_SUCCESS
 
     def gl_get_attr(self, attr, value):
         """Gets OpenGL attributes."""
         attr_map = {
-            M64P_GL_DOUBLEBUFFER: self.glformat.doubleBuffer,
+            M64P_GL_DOUBLEBUFFER: lambda: 1,
             M64P_GL_BUFFER_SIZE: self.glformat.depthBufferSize,
-            M64P_GL_DEPTH_SIZE: self.glformat.depth,
+            M64P_GL_DEPTH_SIZE: self.glformat.depthBufferSize,
             M64P_GL_RED_SIZE: self.glformat.redBufferSize,
             M64P_GL_GREEN_SIZE: self.glformat.greenBufferSize,
             M64P_GL_BLUE_SIZE: self.glformat.blueBufferSize,
             M64P_GL_ALPHA_SIZE: self.glformat.alphaBufferSize,
             M64P_GL_SWAP_CONTROL: self.glformat.swapInterval,
-            M64P_GL_MULTISAMPLEBUFFERS: self.glformat.sampleBuffers,
+            M64P_GL_MULTISAMPLEBUFFERS: lambda: 0,
             M64P_GL_MULTISAMPLESAMPLES: self.glformat.samples
         }
+
         get_attr = attr_map[attr]
         new_value = int(get_attr())
+
         if new_value == value.contents.value:
             return M64ERR_SUCCESS
         else:
@@ -164,7 +183,7 @@ class Video():
     def gl_swap_buf(self):
         """Swaps the front/back buffers after
         rendering an output video frame. """
-        self.widget.swapBuffers()
+        self.widget.update()
         return M64ERR_SUCCESS
 
     def resize_window(self, width, height):

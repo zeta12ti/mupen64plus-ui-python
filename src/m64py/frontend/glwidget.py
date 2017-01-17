@@ -15,32 +15,29 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from PyQt5.QtCore import Qt, pyqtSignal, QMargins
-from PyQt5.QtOpenGL import QGLWidget
+from PyQt5.QtWidgets import QOpenGLWidget
 
 from m64py.core.defs import *
 from m64py.frontend.keymap import QT2SDL2
 
 
-class GLWidget(QGLWidget):
+class GLWidget(QOpenGLWidget):
 
     toggle_fs = pyqtSignal()
 
     def __init__(self, parent):
-        QGLWidget.__init__(self, parent)
+        QOpenGLWidget.__init__(self, parent)
         self.parent = parent
         self.worker = parent.worker
-        self.setAttribute(Qt.WA_NativeWindow, True)
         self.setContentsMargins(QMargins())
         self.setFocusPolicy(Qt.StrongFocus)
-        self.setFocus(True)
         self.toggle_fs.connect(self.toggle_fullscreen)
 
     def showEvent(self, event):
         self.setFocus(True)
 
     def resizeEvent(self, event):
-        size = event.size()
-        self.resize(size.width(), size.height())
+        pass
 
     def paintEvent(self, event):
         pass

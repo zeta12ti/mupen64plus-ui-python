@@ -61,7 +61,14 @@ class GLWidget(QGLWidget):
                 self.worker.save_snapshot()
             else:
                 try:
-                    sdl_key = QT2SDL2[key]
+                    if event.nativeScanCode() == 105: # right ctrl
+                        sdl_key = 228
+                    elif event.nativeScanCode() == 62: # right shift
+                        sdl_key = 229
+                    elif event.nativeScanCode() == 108: # right alt
+                        sdl_key = 230
+                    else:
+                        sdl_key = QT2SDL2[key]
                     self.worker.send_sdl_keydown(sdl_key)
                 except KeyError:
                     pass
@@ -70,7 +77,14 @@ class GLWidget(QGLWidget):
         if self.worker.state == M64EMU_RUNNING:
             key = event.key()
             try:
-                sdl_key = QT2SDL2[key]
+                if event.nativeScanCode() == 105: # right ctrl
+                    sdl_key = 228
+                elif event.nativeScanCode() == 62: # right shift
+                    sdl_key = 229
+                elif event.nativeScanCode() == 108: # right alt
+                    sdl_key = 230
+                else:
+                    sdl_key = QT2SDL2[key]
                 self.worker.send_sdl_keyup(sdl_key)
             except KeyError:
                 pass
